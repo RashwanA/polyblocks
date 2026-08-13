@@ -1,0 +1,35 @@
+[project]
+name = "polyblocks"
+version = "0.1.0"
+description = "Solvers for global monotonic optimisation problems"
+readme = "README.md"
+authors = [
+    { name = "Ahmed Rashwan", email = "ar3009@bath.ac.uk" }
+]
+requires-python = ">=3.10"
+dependencies = [
+    "numba>=0.65.1",
+    "numpy>=2.2.6",
+]
+license = "MIT"
+
+[project.urls]
+Homepage = "https://github.com/RashwanA/polyblocks"
+
+[build-system]
+requires = ["uv_build>=0.9.4,<0.11.26"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pandas>=2.3.0",
+    "pytest>=9.1.1",
+]
+docs = [
+    "mkdocs>=1.6.1",
+    "mkdocs-material>=9.6.0",
+    "mkdocstrings[python]>=0.30.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -3,6 +3,7 @@
 from abc import ABC, abstractmethod
 
 import numpy as np
+from numpy import ndarray
 
 from polyblocks.abstract import ABPolyblock
 
@@ -22,9 +23,9 @@ class MonotoneProb(ABC):
             else np.broadcast_to(x_min, vars)
         )
         self.dtype = self.x_min.dtype
-        self.ub_trg = 0.0
-        self.lb_trg = 0.0
-        self.params = {}
+        self.ub_trg: ndarray
+        self.lb_trg: ndarray
+        self.params: dict[str, dict[str, ndarray]] = {}
         self.reroll()
 
     def reroll(self):
@@ -33,14 +34,14 @@ class MonotoneProb(ABC):
         self.rand_trg()
 
     @abstractmethod
-    def generate_params(self) -> dict:
+    def generate_params(self) -> dict[str, ndarray]:
         """Generates parameters for class of functions."""
 
     @abstractmethod
-    def eval(self, x, **kwargs) -> np.ndarray:
+    def eval(self, x: ndarray, **kwargs: ndarray) -> ndarray:
         """Evaluate function given `x` and generated parameters."""
 
-    def _apply(self, x, type):
+    def _apply(self, x: ndarray, type: str) -> ndarray:
         """Applies the function of type `type` to a batched input`x`."""
         return self.eval(x, **self.params[type])
 
@@ -78,7 +79,7 @@ class RandQCQP(MonotoneProb):
     def __init__(self, vars, x_max=None, x_min=None, seed=0):
         super().__init__(vars=vars, x_max=x_max, x_min=x_min, seed=seed)
 
-    def generate_params(self) -> dict:
+    def generate_params(self):
         random = self.rng.random
         dtype = self.dtype
 

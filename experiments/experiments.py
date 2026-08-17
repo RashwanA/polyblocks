@@ -2,7 +2,6 @@
 
 import os
 from itertools import product
-from time import perf_counter
 
 import numpy as np
 import pandas as pd
@@ -38,20 +37,18 @@ def experiments(seed=0, n_probs=20, fname="results.csv"):
     for clss, dim, solver in product(prob_clss, dims, solvers):
         prob = clss(vars=dim, seed=seed)
         for i in range(n_probs):
-            st = perf_counter()
             sol = prob.solve(
                 solver,
                 delta=0.0 if solver.__name__ in ("Balanced", "Base") else 1e-3,
             )
 
-            runtime = perf_counter() - st
             print_row(
                 header=i % 50 == 0,
                 **{
                     "Itr": i,
                     "Problem Class": clss.__name__,
                     "Solver Variant": solver.__name__,
-                    "Runtime (sec)": runtime,
+                    "Runtime (sec)": sol.runtime,
                     "Termination status": sol.status,
                 },
             )
@@ -64,7 +61,7 @@ def experiments(seed=0, n_probs=20, fname="results.csv"):
                 dim=dim,
                 n_probs=n_probs,
                 instance=i,
-                runtime=round(runtime, 3),
+                runtime=round(sol.runtime, 3),
                 success=sol.success,
                 obj=round(sol.obj, 3) if sol.obj > -np.inf else np.nan,
             )

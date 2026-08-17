@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
+from enum import StrEnum
 from functools import partial
 from time import perf_counter
 
@@ -8,6 +9,27 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from .utils import monotone_proj, print_row, tighten
+
+
+class Status(StrEnum):
+    """
+    Termination status of `ABPolyblock.solve`.
+
+    Attributes:
+        MAX_ITER: Iteration limit reached before convergence.
+        INFEASIBLE_X_L: Problem infeasible since `x_l` not in normal set.
+        OPTIMAL: Solver converged and certified the incumbent as optimal.
+        INFEASIBLE_RELAXATION: No feasible point found under the current relaxation.
+        MAX_POLYBLOCK_SIZE: Polyblock size exceeded `POLYBLOCK_LIMIT`.
+        TIME_LIMIT: Time limit exceeded before convergence.
+    """
+
+    MAX_ITER = "Maximum iterations reached."
+    INFEASIBLE_X_L = "Problem Infeasible since `x_l` not in normal set."
+    OPTIMAL = "Optimal!"
+    INFEASIBLE_RELAXATION = "Infeasible under current relaxation."
+    MAX_POLYBLOCK_SIZE = "Maximum polyblock size exceeded."
+    TIME_LIMIT = "Time limit exceeded."
 
 
 @dataclass
@@ -20,16 +42,18 @@ class Solution:
         obj: Optimal (or best attained) objective value.
         best_bound: Best upper-bound on the optimal objective.
         success: Whether the solver returned an optimal solution.
-        status: Description of the termination status.
+        status: Termination status.
         n_iter: Number of iterations executed.
+        runtime: Total runtime of the solver.
     """
 
     x: NDArray | None = None
     obj: float = -np.inf
     best_bound: float = np.inf
     success: bool = False
-    status: str = "Maximum iterations reached"
+    status: Status = Status.MAX_ITER
     n_iter: int = 0
+    runtime: float = 0.0
 
 
 class ABPolyblock(ABC):
@@ -214,7 +238,7 @@ class ABPolyblock(ABC):
             raise ValueError("`x_u` must be no smaller than `x_l` element-wise.")
         elif not ub_oracle(x_l[None]):
             sol.success = True
-            sol.status = "Problem Infeasible since `x_l` not in normal set."
+            sol.status = Status.INFEASIBLE_X_L
             if verbose:
                 print(sol.status)
             return sol
@@ -266,15 +290,15 @@ class ABPolyblock(ABC):
             if empty:
                 sol.success = True
                 if sol.x is not None:
-                    sol.status = "Optimal!"
+                    sol.status = Status.OPTIMAL
                 else:
-                    sol.status = "Infeasible under current relaxation."
+                    sol.status = Status.INFEASIBLE_RELAXATION
                 break
             elif polyblock.size > cls.POLYBLOCK_LIMIT:
-                sol.status = "Maximum polyblock size exceeded."
+                sol.status = Status.MAX_POLYBLOCK_SIZE
                 break
             elif perf_counter() - start_time > time_limit:
-                sol.status = "Time limit exceeded."
+                sol.status = Status.TIME_LIMIT
                 break
 
             if verbose and i % verbose_gap == 0:
@@ -290,11 +314,13 @@ class ABPolyblock(ABC):
 
         sol.n_iter = i + 1
         sol.best_bound = polyblock.best_bound
+        sol.runtime = perf_counter() - start_time
         if verbose:
             print(
                 f"{sol.status}, "
-                f"itr: {sol.n_iter}, "
-                f"Best solution: {sol.x}, "
+                f"Iter: {sol.n_iter}, "
+                f"Runtime: {sol.runtime:.2f} s, "
+                f"Best solution: {sol.x.round(2)}, "
                 f"Obj: {sol.obj:.3f}"
             )
 

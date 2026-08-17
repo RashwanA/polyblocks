@@ -506,6 +506,12 @@ wheels = [
 ]
 
 [[package]]
+name = "numerize"
+version = "0.12"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/6a/cf/c5dfa6ca5b6553f30860337020d76c582fd81b48da58982a6f2ff1f1fe40/numerize-0.12.tar.gz", hash = "sha256:5548fe72adceb2c7964998179697d80117bb117f57cd02f872cf5db40d615c04", size = 2721, upload-time = "2018-08-14T14:48:33.212Z" }
+
+[[package]]
 name = "numpy"
 version = "2.2.6"
 source = { registry = "https://pypi.org/simple" }
@@ -836,10 +842,11 @@ wheels = [
 
 [[package]]
 name = "polyblocks"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "numba" },
+    { name = "numerize" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
@@ -859,6 +866,7 @@ docs = [
 [package.metadata]
 requires-dist = [
     { name = "numba", specifier = ">=0.65.1" },
+    { name = "numerize", specifier = ">=0.12" },
     { name = "numpy", specifier = ">=2.2.6" },
 ]
 

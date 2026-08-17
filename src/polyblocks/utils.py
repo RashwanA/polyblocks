@@ -1,6 +1,7 @@
 from collections.abc import Callable
 
 import numpy as np
+from numerize.numerize import numerize
 from numpy.linalg import norm
 from numpy.typing import NDArray
 
@@ -11,7 +12,7 @@ def monotone_proj(
     oracle: Callable,
     eps=1e-4,
     delta=0.0,
-):
+) -> NDArray:
     """
     Perform a vectorised bisection search to compute monotone projections onto the `delta`-eroded normal set corresponding to the given oracle.
 
@@ -48,7 +49,7 @@ def monotone_proj(
     return lb * diff + vertices
 
 
-def tighten(root: NDArray, reduced: NDArray, oracle: Callable, eps=1e-4):
+def tighten(root: NDArray, reduced: NDArray, oracle: Callable, eps=1e-4) -> NDArray:
     """Tighten the box anchored at `root` using a monotone oracle."""
 
     reduced = reduced.copy()
@@ -90,7 +91,7 @@ def print_row(*, header: bool = True, **columns):
     cells = []
     for name, value in columns.items():
         if isinstance(value, int):
-            value = f"{value:#.2g}"
+            value = f"{numerize(value, decimals=2)}"
         elif isinstance(value, float):
             value = f"{value:#.4g}"
         else:

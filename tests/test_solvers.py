@@ -4,7 +4,8 @@ from numpy import allclose, array
 from polyblocks import BalancedPOA, BasePOA, TreePOA
 
 
-def test_1d():
+@pytest.mark.parametrize("solver", (TreePOA, BasePOA, BalancedPOA))
+def test_1d(solver):
     """
     A trivial 1D problem, solved in a single POA iteration:
         max     x
@@ -12,7 +13,7 @@ def test_1d():
                 0 <= x <= 1
     """
 
-    sol = TreePOA.solve(
+    sol = solver.solve(
         obj=lambda x: x[:, 0],
         ub_oracle=lambda x: x[:, 0] <= 0.5,
         x_l=(0.0,),
@@ -106,7 +107,7 @@ def test_simple1(solver):
     assert sol.success
     assert sol.x is not None
     assert allclose(sol.x, (0.8, 0.2), atol=0.01)
-    assert allclose(sol.obj, 1.8, atol=0.01)
+    assert allclose(sol.obj, 1.8, rtol=0.01)
 
 
 @pytest.mark.parametrize("solver", (TreePOA, BasePOA, BalancedPOA))
@@ -145,7 +146,7 @@ def test_solvers_agree(solver):
 
     assert sol.success
     assert sol.x is not None
-    assert allclose(sol.obj, obj(x_opt), atol=0.01)
+    assert allclose(sol.obj, obj(x_opt), rtol=eps_rel, atol=eps_abs)
     assert allclose(sol.x, x_opt, atol=0.02)
 
     no_bound = sol.best_bound != sol.best_bound

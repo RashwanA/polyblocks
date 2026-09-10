@@ -7,8 +7,8 @@ from numpy.typing import NDArray
 
 
 def monotone_proj(
-    vertices: NDArray,
     anchors: NDArray,
+    vertices: NDArray,
     oracle: Callable,
     eps=1e-4,
     delta=0.0,
@@ -17,8 +17,8 @@ def monotone_proj(
     Perform a vectorised bisection search to compute monotone projections onto the `delta`-eroded normal set corresponding to the given oracle.
 
     Args:
-        vertices: Vertices to project using paired anchors, of shape `(num_pairs, dim)`.
         anchors: Feasible anchor points for projecting paired vertex, of shape `(num_pairs, dim)`. Shifted by `delta` to account for erosion.
+        vertices: Vertices to project using paired anchors, of shape `(num_pairs, dim)`.
         oracle: An oracle for querying normal set feasibility.
         eps: The numerical tolerance for the line search.
         delta: The erosion factor for the normal set.
@@ -27,37 +27,34 @@ def monotone_proj(
         Batched monotone projections of shape `(num_pairs, dim)`.
     """
 
-    ## resolve erosion
-    vert_offset = vertices + delta
-    anchors = anchors - delta
+    ## feasible anchors for eroded set
+    offset_anchors = anchors - delta
 
     ## scale epsilon
-    diff = anchors - vertices
+    diff = vertices - offset_anchors
     eps = eps / norm(diff, ord=2, axis=-1, keepdims=True)
 
     ub = np.ones_like(eps)
-    lb = -eps
-    x = np.full_like(eps, 0.5)
+    lb = np.where(oracle(vertices + delta)[:, None], ub, -eps)
 
     while (ub - lb > eps).any():
-        mask = oracle(diff * x + vert_offset)
+        x = (ub + lb) / 2
+        mask = oracle(diff * x + anchors)
         n_mask = ~mask
         ub[n_mask] = x[n_mask]
         lb[mask] = x[mask]
-        x = (ub + lb) / 2
 
-    return lb * diff + vertices
+    return lb * diff + offset_anchors
 
 
 def tighten(root: NDArray, reduced: NDArray, oracle: Callable, eps=1e-4) -> NDArray:
     """Tighten the box anchored at `root` using a monotone oracle."""
 
-    reduced = reduced.copy()
-    for ind in range(reduced.shape[-1]):
-        c_end = root.copy()
-        c_end[ind] = reduced[ind]
-        reduced[ind] = monotone_proj(root[None], c_end[None], oracle, eps=eps)[0, ind]
-    return reduced
+    root = np.tile(root, (root.shape[0], 1))
+    diag = root.copy()
+    np.fill_diagonal(diag, reduced)
+    proj = monotone_proj(root, diag, oracle=oracle, eps=eps)
+    return proj.diagonal().copy()
 
 
 def _center(s: str, width: int) -> str:

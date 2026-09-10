@@ -60,7 +60,7 @@ class ABPolyblock(ABC):
     """
     An abstract class for custom implementations of the Polyblock Outer-approximation (POA) algorithm.
 
-    POA maximises an increasing objective over `G ∩ H ∩ [x_l, x_u]`, where `G` is a normal set given by `ub_oracle` and `H` a co-normal set given by `lb_oracle`.
+    POA maximises an increasing objective over `G ∩ H ∩ [x_l, x_u]`, where `G` is a normal set given by `ub_oracle`, `H` a co-normal set given by `lb_oracle`, and `x_l < x_u`.
     It does so by maintaining a *polyblock*: a finite vertex set `V` whose union of boxes `(-inf, v]` contains every feasible point which could still improve the incumbent.
     Each iteration projects vertices of `V` onto the boundary of `G` and cuts the
     infeasible cone strictly above each projection out of the polyblock, so the outer-approximation tightens until `V` empties and the incumbent is certified optimal.
@@ -83,7 +83,7 @@ class ABPolyblock(ABC):
     POLYBLOCK_LIMIT = 2 * int(1e8)
 
     @abstractmethod
-    def __init__(self, lower: NDArray, upper: NDArray) -> None:
+    def __init__(self, lower: NDArray, upper: NDArray, upper_obj: np.floating) -> None:
         """
         Initialises polyblock representation using lower and upper points which define the feasible rectangle.
 
@@ -92,6 +92,7 @@ class ABPolyblock(ABC):
         Args:
             lower: Lower point of the feasible rectangle, of shape `(dim,)`.
             upper: Upper point of the feasible rectangle, of shape `(dim,)`.
+            upper_obj: Objective value of the upper point.
         """
 
     @abstractmethod
@@ -223,7 +224,7 @@ class ABPolyblock(ABC):
             The best solution found, see `Solution`. Note that `success` reports whether the solver terminated on its own certificate rather than a limit, so it is also set when the problem is proven infeasible.
 
         Raises:
-            ValueError: If `x_u` is smaller than `x_l` in any coordinate.
+            ValueError: If `x_u` is not greater than `x_l` in each coordinate.
         """
 
         lb_exists = lb_oracle is not None
@@ -234,8 +235,8 @@ class ABPolyblock(ABC):
 
         ## initial checks
         x_l, x_u = np.broadcast_arrays(x_l, x_u)
-        if (x_u - x_l < 0).any():
-            raise ValueError("`x_u` must be no smaller than `x_l` element-wise.")
+        if (x_u <= x_l).any():
+            raise ValueError("`x_u` must be greater than `x_l` element-wise.")
         elif not ub_oracle(x_l[None]):
             sol.success = True
             sol.status = Status.INFEASIBLE_X_L
@@ -248,7 +249,7 @@ class ABPolyblock(ABC):
         x_l = tighten(x_u, x_l, oracle=lb_oracle) if lb_exists else x_l.copy()
 
         mono_proj = partial(monotone_proj, oracle=ub_oracle, eps=eps_ls, delta=delta)
-        polyblock = cls(x_l, x_u)
+        polyblock = cls(x_l, x_u, obj(x_u[None])[0])
         min_obj = -np.inf
 
         ## main loop

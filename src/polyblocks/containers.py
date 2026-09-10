@@ -13,10 +13,10 @@ class DynamicArray:
 
     __slots__ = ("data", "length")
 
-    def __init__(self, dim=1, dtype: DTypeLike = float, start_sz=100):
-        """Initialise dynamic container consisting of `dim` dimensional vectors of type `dtype`"""
+    def __init__(self, dim=1, dtype: DTypeLike = float, start_sz=100, keepdims=False):
+        """Initialise dynamic container consisting of `dim` dimensional vectors of type `dtype`. Flattens array when `dim` is 1 and `keepdims` is False."""
 
-        size = (start_sz,) if dim == 1 else (start_sz, dim)
+        size = (start_sz,) if dim == 1 and not keepdims else (start_sz, dim)
         self.data = np.empty(size, dtype=dtype)
         self.length = 0
 
@@ -65,8 +65,12 @@ class Tree:
     IDX_TYPE = np.int32
     COMPONENT_TYPE = np.int8
 
-    def __init__(self, first: NDArray[np.float32 | np.float64]):
-        """Initialise tree using the root node vertex."""
+    def __init__(
+        self,
+        first: NDArray[np.float32 | np.float64],
+        upper_obj: np.float32 | np.float64,
+    ):
+        """Initialise tree using the root node vertex and its objective value."""
 
         self.first = first
 
@@ -81,7 +85,7 @@ class Tree:
 
         ## add first points
         self.idx_range.append([-1, -1])
-        self.cvo.append((-1, -1, np.inf))
+        self.cvo.append((-1, -1, upper_obj))
         self.parent.append(-1)
 
     def query(self, x: NDArray, lower: NDArray, min_obj=-np.inf, delta=1e-3) -> tuple:

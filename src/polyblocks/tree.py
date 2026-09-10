@@ -35,9 +35,9 @@ class TreePOA(ABPolyblock):
     REBUILD_GAP: int = 10000
     PROJECTED_VERTICES: int = 8
 
-    def __init__(self, lower, upper) -> None:
+    def __init__(self, lower, upper, upper_obj) -> None:
         self.lower = lower
-        self.tree = Tree(upper)
+        self.tree = Tree(upper, upper_obj)
         self.best_obj = -np.inf
         self.clean_counter = 0
 

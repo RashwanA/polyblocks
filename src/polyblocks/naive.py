@@ -1,4 +1,3 @@
-import numpy as np
 from numpy.typing import NDArray
 
 from .abstract import ABPolyblock
@@ -12,17 +11,19 @@ class BasePOA(ABPolyblock):
     POLYBLOCK_LIMIT = 3 * int(1e6)
     RHO = 0.2
 
-    def __init__(self, lower, upper):
+    def __init__(self, lower, upper, upper_obj):
         self.lower = lower
         const = self.RHO / (1 - self.RHO)
         self.lower_offset = lower - const * (upper - lower).max()
         self.lower_offset = self.lower_offset[None]
         self.new: NDArray
 
-        self.vertices = DynamicArray(dim=lower.shape[0], dtype=lower.dtype)
+        self.vertices = DynamicArray(
+            dim=lower.shape[0], dtype=lower.dtype, keepdims=True
+        )
         self.obj_vals = DynamicArray(dim=1, dtype=lower.dtype)
         self.vertices.append(upper)
-        self.obj_vals.append(np.inf)
+        self.obj_vals.append(upper_obj)
 
     def projection_pairs(self) -> tuple[NDArray, NDArray]:
         best_vtx = self.obj_vals.array.argmax()

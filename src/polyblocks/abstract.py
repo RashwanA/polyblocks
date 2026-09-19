@@ -131,7 +131,6 @@ class ABPolyblock(ABC):
 
         Cuts the cones above `proj` out of the polyblock, returning the vertices which replace those they remove.
         A vertex lying above a projection is refined by reducing each of its components in turn to the matching component of that projection, giving up to `dim` replacements.
-        The choice of which vertices are refined, a vertex lying above several projections is handled is left to the implementation.
         The implementation decides which vertices are refined, the projections used to refine them, and how redundancy checking is handled.
 
         New vertiecs are internally retained, since `update` reports feasibility against it positionally.

@@ -92,7 +92,7 @@ class Tree:
         """
         Find and expand all leaf nodes which lie in the upper orthant of points `x`.
 
-        If a leaf node lies in more than one orthant, it is expanded using only the first valid point in `x`.
+        If a leaf node lies in more than one orthant, it is expanded using only the first of them, and only if it lies `delta` above that point.
 
         Args:
             x: Array of shape `(num_points, dim)` containing points to query.

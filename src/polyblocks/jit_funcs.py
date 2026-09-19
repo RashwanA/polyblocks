@@ -104,7 +104,7 @@ def query_multi(x_batch, cvo, idx_range, first, lower, min_obj=-np.inf, delta=1e
     Query and refine a polyblock tree using a batch of points `x_batch`.
 
     Each point is queried independently, and the leaves it matches are refined along every component which yields a non-redundant vertex.
-    A leaf matching more than one query point is refined against only the first of them.
+    A leaf matching more than one query point is refined against only the first whose cone contains it, and only if it clears that point by `delta`.
 
     Args:
         x_batch: Query points of shape `(num_points, dim)`.
@@ -141,16 +141,14 @@ def query_multi(x_batch, cvo, idx_range, first, lower, min_obj=-np.inf, delta=1e
         x_delta = x_batch_delta[i]
         value, index = query(x, cvo, idx_range, first, min_obj)
 
-        ## only explore vertices further than delta and break ties
+        ## only explore vertices further than delta, while leaving those an earlier cone claims
         refine_mask = all_row(value > x_delta)
         if i > 0:
             for idx in range(value.shape[0]):
                 if refine_mask[idx]:
                     v_idx = value[idx]
                     for j in range(i):
-                        x_delta_j = x_batch_delta[j]
-                        feas_j = (v_idx > x_delta_j).all()
-                        if feas_j:
+                        if (v_idx >= x_batch[j]).all():
                             refine_mask[idx] = False
                             break
 

@@ -30,7 +30,7 @@ class BasePOA(ABPolyblock):
         return self.lower_offset, self.vertices[None, best_vtx].copy()
 
     def set_min_obj(self, obj) -> None:
-        removed_idx = (self.obj_vals.array < obj).nonzero()[0]
+        removed_idx = (self.obj_vals.array <= obj).nonzero()[0]
         self.vertices.delete(removed_idx)
         self.obj_vals.delete(removed_idx)
 

@@ -49,14 +49,14 @@ def rebuild(cvo, idx_range, parents, min_obj) -> int:
 @njit(nogil=True, cache=True)
 def query(x, cvo, idx_range, first, min_obj=-np.inf):
     """
-    Query polyblock tree for all vertices `v` such that `v >= x` and `obj[v] >= min_obj`.
+    Query polyblock tree for all vertices `v` such that `v >= x` and `obj[v] > min_obj`.
 
     Args:
         x: Query point of shape `(dim,)`.
         cvo: Node data with `comp`, `value` and `obj` fields.
         idx_range: Child index ranges of shape `(num_nodes, 2)`.
         first: Root vertex value of shape `(dim,)`.
-        min_obj: Subtrees whose objective falls below this value are not descended into.
+        min_obj: Subtrees whose objective does not exceed this value are not descended into.
 
     Returns:
         A tuple `(values, indices)`:
@@ -89,7 +89,7 @@ def query(x, cvo, idx_range, first, min_obj=-np.inf):
 
         for i in range(st, end):
             ci = cvo[i]
-            if ci["obj"] >= min_obj and x[ci["comp"]] <= ci["value"]:
+            if ci["obj"] > min_obj and x[ci["comp"]] <= ci["value"]:
                 node_stack.append((idx_type(i), depth + 1))
 
     ## collect leaf values
@@ -113,7 +113,7 @@ def query_multi(x_batch, cvo, idx_range, first, lower, min_obj=-np.inf, delta=1e
         idx_range: Child index ranges of shape `(num_nodes, 2)`.
         first: Root vertex value of shape `(dim,)`.
         lower: Component-wise lower-bounds on tree vertices, of shape `(dim,)`.
-        min_obj: Subtrees whose objective falls below this value are not descended into.
+        min_obj: Subtrees whose objective does not exceed this value are not descended into.
         delta: Minimum separation from the query point required to refine a leaf.
 
     Returns:

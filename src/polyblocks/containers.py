@@ -97,7 +97,7 @@ class Tree:
         Args:
             x: Array of shape `(num_points, dim)` containing points to query.
             lower: Component-wise lower-bounds on tree vertices.
-            min_obj: Lower-bound on leaf objective permitted.
+            min_obj: Strict lower-bound on leaf objective permitted.
             delta: Minimum distance from `x` required to expand a leaf.
 
         Returns:
@@ -174,7 +174,7 @@ class Tree:
         update_obj(expanded, parents.array, cvo.array, idx_range.array)
 
     def rebuild(self, min_obj: float) -> None:
-        """Remove childless nodes and nodes with objectives below `min_obj`."""
+        """Remove childless nodes and nodes with objectives not exceeding `min_obj`."""
 
         parent = self.parent
         idx_range = self.idx_range

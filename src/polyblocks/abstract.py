@@ -117,9 +117,9 @@ class ABPolyblock(ABC):
     @abstractmethod
     def set_min_obj(self, obj: float) -> None:
         """
-        Update minimum objective value of future candidate solutions, discarding those which fall below it.
+        Update minimum objective value of future candidate solutions, discarding those which do not exceed it.
 
-        The polyblock only has to cover feasible points which beat the incumbent by the optimality tolerance, so a vertex falling below `obj` may be dropped: its objective bounds the whole box below it.
+        The polyblock only has to cover feasible points which beat the incumbent by the optimality tolerance, so a vertex whose objective does not exceed `obj` may be dropped: its objective bounds the whole box below it.
         Called only when the incumbent improves, so `obj` increases monotonically over a solve.
 
         Args:
@@ -152,7 +152,7 @@ class ABPolyblock(ABC):
         Updates internal polyblock representation after checking new vertex feasibility.
 
         `new_mask` indexes the array returned by `new_vertices` in the same order, while `new_obj` holds objective values for the masked entries alone.
-        Masked-out vertices either violate the co-normal constraints or fall below the objective cut-off, and should be discarded rather than stored.
+        Masked-out vertices either violate the co-normal constraints or do not exceed the objective cut-off, and should be discarded rather than stored.
 
         Args:
             new_mask: Refined vertex feasibility, of shape `(num_new,)`.
@@ -282,7 +282,7 @@ class ABPolyblock(ABC):
             ## update polyblock representation
             new = polyblock.new_vertices(proj, delta=delta)
             new_obj = obj(new).flatten()
-            new_mask = new_obj >= min_obj
+            new_mask = new_obj > min_obj
             if lb_exists:
                 new_mask &= lb_oracle(new)
             new_obj = new_obj[new_mask]

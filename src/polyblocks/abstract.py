@@ -45,6 +45,7 @@ class Solution:
         status: Termination status.
         n_iter: Number of iterations executed.
         runtime: Total runtime of the solver.
+        max_polyblock: Largest polyblock representation attained.
     """
 
     x: NDArray | None = None
@@ -54,6 +55,7 @@ class Solution:
     status: Status = Status.MAX_ITER
     n_iter: int = 0
     runtime: float = 0.0
+    max_polyblock: int = 1
 
 
 class ABPolyblock(ABC):
@@ -190,7 +192,7 @@ class ABPolyblock(ABC):
         lb_oracle: Callable[[NDArray[np.floating]], NDArray[np.bool]] | None = None,
         eps_obj_abs: float = 1e-6,
         eps_obj_rel: float = 1e-2,
-        eps_ls: float = 1e-3,
+        eps_ls: float = 1e-4,
         delta: float = 1e-3,
         verbose_gap: int | None = None,
         time_limit: int = 3600,
@@ -285,6 +287,7 @@ class ABPolyblock(ABC):
                 new_mask &= lb_oracle(new)
             new_obj = new_obj[new_mask]
             empty = polyblock.update(new_mask, new_obj)
+            sol.max_polyblock = max(sol.max_polyblock, polyblock.size)
 
             ## check termination
             if empty:
@@ -294,7 +297,7 @@ class ABPolyblock(ABC):
                 else:
                     sol.status = Status.INFEASIBLE_RELAXATION
                 break
-            elif polyblock.size > cls.POLYBLOCK_LIMIT:
+            elif sol.max_polyblock > cls.POLYBLOCK_LIMIT:
                 sol.status = Status.MAX_POLYBLOCK_SIZE
                 break
             elif perf_counter() - start_time > time_limit:
@@ -320,7 +323,7 @@ class ABPolyblock(ABC):
                 f"{sol.status}, "
                 f"Iter: {sol.n_iter}, "
                 f"Runtime: {sol.runtime:.2f} s, "
-                f"Best solution: {sol.x.round(2)}, "
+                f"Best solution: {sol.x.round(2) if sol.x is not None else None}, "
                 f"Obj: {sol.obj:.3f}"
             )
 

@@ -65,35 +65,36 @@ def query(x, cvo, idx_range, first, min_obj=-np.inf):
     """
 
     idx_type = idx_range.dtype.type
-    node_stack = [
-        (idx_type(0), first),
-    ]
+    node_stack = [(idx_type(0), 0)]
+    node_val = first.copy()
+    undo = []
     leaf_idx = []
     leaf_values = []
 
     while node_stack:
-        ## search top node
-        node_idx, node_val = node_stack.pop()
-        st, end = idx_range[node_idx]
+        ## rewind `node_val` to the parent of the current node, then apply its modification
+        node_idx, depth = node_stack.pop()
+        while len(undo) >= depth > 0:
+            comp, prev = undo.pop()
+            node_val[comp] = prev
+        if depth > 0:
+            c = cvo[node_idx]["comp"]
+            undo.append((c, node_val[c]))
+            node_val[c] = cvo[node_idx]["value"]
 
+        st, end = idx_range[node_idx]
         if st == -1:
-            node_idx = idx_range.dtype.type(node_idx)
             leaf_idx.append(node_idx)
-            leaf_values.append(node_val)
+            leaf_values.extend(node_val)
 
         for i in range(st, end):
             ci = cvo[i]
             if ci["obj"] >= min_obj and x[ci["comp"]] <= ci["value"]:
-                child_val = node_val.copy()
-                child_val[ci["comp"]] = ci["value"]
-                node_stack.append((i, child_val))
+                node_stack.append((idx_type(i), depth + 1))
 
     ## collect leaf values
     l_idx = np.array(leaf_idx, dtype=idx_type)
-    n_leaves = l_idx.shape[0]
-    l_vals = np.empty((n_leaves, x.shape[0]), dtype=x.dtype)
-    for i in range(n_leaves):
-        l_vals[i] = leaf_values[i]
+    l_vals = np.array(leaf_values, dtype=x.dtype).reshape(-1, x.shape[0])
 
     return l_vals, l_idx
 
@@ -124,57 +125,53 @@ def query_multi(x_batch, cvo, idx_range, first, lower, min_obj=-np.inf, delta=1e
             cval: New value taken by that component.
     """
 
-    b = x_batch.shape[0]
-    idx_dtype = idx_range.dtype
-    float_dtype = x_batch.dtype
-    x_batch_delta = x_batch + delta
+    b, dim = x_batch.shape
 
-    indices = [np.empty(0, dtype=idx_dtype) for _ in range(b)]
-    values = [np.empty((0, 0), dtype=float_dtype) for _ in range(b)]
-    vects = [np.empty((0), dtype=np.int64) for _ in range(b)]
-    comps = [np.empty((0), dtype=np.int64) for _ in range(b)]
-    comp_val = [np.empty((0), dtype=float_dtype) for _ in range(b)]
+    matched = [np.empty((0, 0), dtype=x_batch.dtype) for _ in range(b)]
+    refined = [np.empty((0, 0), dtype=x_batch.dtype) for _ in range(b)]
+    indices = [np.empty(0, dtype=idx_range.dtype) for _ in range(b)]
+    projections = [np.empty(0, dtype=np.int64) for _ in range(b)]
 
-    ## parallel queries and redundancy checks
+    ## parallel queries
     for i in prange(b):
-        x = x_batch[i]
-        x_delta = x_batch_delta[i]
-        value, index = query(x, cvo, idx_range, first, min_obj)
+        value, index = query(x_batch[i], cvo, idx_range, first, min_obj)
 
         ## only explore vertices further than delta, while leaving those an earlier cone claims
-        refine_mask = all_row(value > x_delta)
-        if i > 0:
-            for idx in range(value.shape[0]):
-                if refine_mask[idx]:
-                    v_idx = value[idx]
-                    for j in range(i):
-                        if (v_idx >= x_batch[j]).all():
-                            refine_mask[idx] = False
+        refine_mask = all_row(value > x_batch[i] + delta)
+        for idx in range(value.shape[0]):
+            if refine_mask[idx]:
+                for j in range(i):
+                    inside = True
+                    for d in range(dim):
+                        if value[idx, d] < x_batch[j, d]:
+                            inside = False
                             break
+                    if inside:
+                        refine_mask[idx] = False
+                        break
 
-        idx_mask = x >= lower
-        vect, comp = find_redundant(value, idx_mask, refine_mask)
-
+        matched[i] = value
+        refined[i] = value[refine_mask]
         indices[i] = index[refine_mask]
-        values[i] = value[refine_mask]
-        vects[i] = vect
-        comps[i] = comp
-        comp_val[i] = x[comp]
+        projections[i] = np.full(refined[i].shape[0], i, dtype=np.int64)
 
-    ## merge all data while shifting indices
-    v_full = cat(values)
-    ind_full = cat(indices)
+    ## perform redundancy checks in parallel for each matched leaf
+    v_full = cat(refined)
+    projection = cat(projections)
 
-    cumsum = len(indices[0])
-    for i in range(1, b):
-        vects[i] += cumsum
-        cumsum += len(indices[i])
+    mask = np.empty((v_full.shape[0], dim), dtype=np.bool)
+    for t in prange(v_full.shape[0]):
+        p = projection[t]
+        for d in range(dim):
+            mask[t, d] = x_batch[p, d] >= lower[d]
+        redundant_row(v_full[t], matched[p], mask[t])
 
-    vect_full = cat(vects)
-    comp_full = cat(comps)
-    cval_full = cat(comp_val)
+    vect, comp = mask.nonzero()
+    cval = np.empty(vect.shape[0], dtype=x_batch.dtype)
+    for k in range(vect.shape[0]):
+        cval[k] = x_batch[projection[vect[k]], comp[k]]
 
-    return v_full, ind_full, vect_full, comp_full, cval_full
+    return v_full, cat(indices), vect, comp, cval
 
 
 @njit(nogil=True, cache=True)
@@ -201,21 +198,21 @@ def all_row(arr):
     return mask
 
 
-@njit(parallel=True, nogil=True, cache=True)
-def find_best(cvo, idx_range, first, num=1):
+@njit(nogil=True, cache=True)
+def find_best(cvo, idx_range, first, min_obj, num=1):
     """
     Find up to `num` distinct leaf vertices, the first of which has the best objective.
 
-    Attempts to find distinct leaves by performing `num` tree descents.
-    Descent `i` carries an offset of `i` which diverts its path: at a node with `n` children it steps up to `n - 1` ranks below the best child, taking as many as the remaining offset allows and deducting them from it.
-    Once the offset reaches zero the descent follows best children the rest of the way down.
-    Descent `0` is never diverted and so reaches the best leaf, while larger offsets are spent as high in the tree as possible, giving paths that diverge earlier and hence distinct leaves.
-    A descent `i` still holding offset when it reaches a leaf is discarded as its path is identical to that of a descent with a smaller index `j < i`, so fewer than `num` vertices may be returned.
+    The tree is expanded level by level from the root until the frontier holds at least `num` subtrees that clear the `min_obj` threshold, or until no node can be expanded further.
+    As the subtrees are disjoint their top leaves are distinct, and splitting as high in the tree as possible spreads them apart while still focusing high objective vertices.
+    The frontier's best subtree contains the best overall leaf, returned first.
+    Fewer than `num` vertices are returned when the tree holds fewer than `num` leaves clearing `min_obj`.
 
     Args:
         cvo: Node data with `comp`, `value` and `obj` fields.
         idx_range: Child index ranges of shape `(num_nodes, 2)`.
         first: Root vertex value of shape `(dim,)`.
+        min_obj: Subtrees whose objective does not exceed this value are not descended into.
         num: Number of descents to attempt.
 
     Returns:
@@ -223,34 +220,41 @@ def find_best(cvo, idx_range, first, num=1):
         The first leaf has the best objective.
     """
 
-    dim = first.shape[0]
-    values = np.empty((num, dim), dtype=first.dtype)
-    for i in range(num):
-        values[i] = first
+    ## expand tree to find `num` distinct subtrees
+    idx_type = idx_range.dtype.type
+    frontier = [(idx_type(0), first.copy())]
+    expand_flag = True
+    while expand_flag and len(frontier) < num:
+        expand_flag = False
+        children = []
+        for node, val in frontier:
+            st, end = idx_range[node]
+            if st == -1:
+                children.append((node, val))
+                continue
+            for i in range(st, end):
+                expand_flag = True
+                ci = cvo[i]
+                if ci["obj"] > min_obj:
+                    child_val = val.copy()
+                    child_val[ci["comp"]] = ci["value"]
+                    children.append((idx_type(i), child_val))
+        frontier = children
 
-    curr_idx = np.zeros(num, dtype=idx_range.dtype)
-    skipped_mask = np.zeros(num, dtype=np.bool)
-    for i in prange(num):
-        skip = np.int32(i)
-        while True:
-            st, end = idx_range[curr_idx[i]]
-            if st == end:
-                if skip == 0:
-                    skipped_mask[i] = True
-                break
-            order = end - st - 1
-            if skip > 0:
-                less = min(skip, end - st - 1)
-                order -= less
-                skip -= less
+    ## descend to the best leaf of each of the best `num` subtrees
+    frontier_obj = np.array([cvo[node]["obj"] for node, _ in frontier])
+    chosen = np.argsort(-frontier_obj, kind="mergesort")[:num]
+    values = np.empty((chosen.shape[0], first.shape[0]), dtype=first.dtype)
+    for i, f in enumerate(chosen):
+        node, val = frontier[f]
+        values[i] = val
+        st, end = idx_range[node]
+        while st != -1:
+            node = st + cvo[st:end]["obj"].argmax()
+            values[i, cvo[node]["comp"]] = cvo[node]["value"]
+            st, end = idx_range[node]
 
-            o = cvo[st:end]["obj"]
-            chosen_child = np.argpartition(o, order)[order] + st
-            child_cvo = cvo[chosen_child]
-            values[i][child_cvo["comp"]] = child_cvo["value"]
-            curr_idx[i] = chosen_child
-
-    return values[skipped_mask]
+    return values
 
 
 @njit(parallel=True, nogil=True, cache=True)
@@ -344,31 +348,41 @@ def find_redundant(arr, idx_mask, eps_mask=None):
         eps_idx = eps_mask.nonzero()[0]
 
     n_exp = eps_idx.shape[0]
-    dims = arr.shape[1]
-    mask = np.empty((n_exp, dims), dtype=np.bool)
+    mask = np.empty((n_exp, arr.shape[1]), dtype=np.bool)
     for i in prange(n_exp):
         mask[i] = idx_mask
-
-    for i in prange(n_exp):
-        ai = arr[eps_idx[i]]
-        for aj in arr:
-            fail_i = -1
-            nfail_i = 0
-
-            for d in range(dims):
-                dom_ij = ai[d] > aj[d]
-
-                if dom_ij:
-                    nfail_i += 1
-                    fail_i = d
-                    if nfail_i > 1:
-                        break
-
-            if nfail_i == 1:
-                mask[i, fail_i] = False
+        redundant_row(arr[eps_idx[i]], arr, mask[i])
 
     vect, comp = mask.nonzero()
     return vect, comp
+
+
+@njit(nogil=True, inline="always", cache=True)
+def redundant_row(ai, arr, mask):
+    """
+    Mark components of `mask` along which refining vertex `ai` is redundant, see `find_redundant`.
+
+    Args:
+        ai: Vertex to refine, of shape `(dim,)`.
+        arr: Candidate vertices which may dominate the refinements, of shape `(num_vertices, dim)`.
+        mask: Components eligible for reduction, of shape `(dim,)`. Modified in-place.
+    """
+
+    n_left = mask.sum()
+    for j in range(arr.shape[0]):
+        ## count components in which `ai` exceeds `arr[j]`
+        n_exceed = 0
+        exceed_d = 0
+        for d in range(ai.shape[0]):
+            exceeds = ai[d] > arr[j, d]
+            n_exceed += exceeds
+            exceed_d = d if exceeds else exceed_d
+
+        if n_exceed == 1 and mask[exceed_d]:
+            mask[exceed_d] = False
+            n_left -= 1
+            if n_left == 0:
+                break
 
 
 @njit(nogil=True, cache=True)

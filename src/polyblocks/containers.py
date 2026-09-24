@@ -119,10 +119,12 @@ class Tree:
             delta=delta,
         )
 
-    def find_best(self, num=1) -> NDArray:
-        """Find up to `num` different leaf node values, the first of which has the best objective."""
+    def find_best(self, min_obj: float, num=1) -> NDArray:
+        """Find up to `num` different active leaf node values, the first of which has the best objective."""
 
-        return find_best(self.cvo.array, self.idx_range.array, self.first, num=num)
+        return find_best(
+            self.cvo.array, self.idx_range.array, self.first, min_obj, num=num
+        )
 
     def add(
         self,

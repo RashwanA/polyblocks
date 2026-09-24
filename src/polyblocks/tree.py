@@ -15,8 +15,7 @@ class TreePOA(ABPolyblock):
     In return, each node bounds both the region and objective of its subtree, so a search can rule out the whole subtree without visiting its leaves. POA's searches over `V` thus become descents rather than scans:
 
     - `projection_pairs` finds the maximal vertex by descending through the highest-objective child at each
-      step, using descents diverted into lower-ranked children to return up to `PROJECTED_VERTICES`
-      distinct leaves
+      step, using descents on disjoint subtrees to return up to `PROJECTED_VERTICES` distinct leaves
     - `new_vertices` collects the vertices above a projection by recursing from the root, entering a child
       only when its component clears the projection and its objective attribute clears the incumbent.
     - `best_bound` is read off the root, whose objective attribute is the maximum over all vertices.
@@ -47,7 +46,7 @@ class TreePOA(ABPolyblock):
         self.cval: np.ndarray
 
     def projection_pairs(self) -> tuple[np.ndarray, np.ndarray]:
-        vertices = self.tree.find_best(self.PROJECTED_VERTICES)
+        vertices = self.tree.find_best(self.best_obj, self.PROJECTED_VERTICES)
         anchors = vertices - (vertices - self.lower).max(-1, keepdims=True)
         return anchors, vertices
 

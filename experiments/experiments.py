@@ -1,13 +1,14 @@
 """Runs all experiments shown in the paper."""
 
 import os
+from collections.abc import Iterable
 from itertools import product
 
 import numpy as np
 import pandas as pd
-from random_probs import RandMonotoneNets, RandQCQP, RandSteps
+from random_probs import MonotoneProb, RandMonotoneNets, RandQCQP, RandSteps
 
-from polyblocks import BalancedPOA, BasePOA, TreePOA
+from polyblocks import ABPolyblock, BalancedPOA, BasePOA, TreePOA
 from polyblocks.utils import print_row
 
 
@@ -19,16 +20,29 @@ def save_csv(fname, **kwargs):
     entry.to_csv(fname, index=False, header=header, mode="a")
 
 
-def experiments(seed=0, n_probs=20, fname="results.csv"):
-    dims = range(4, 7)
-    solvers = (
+def experiments(
+    seed: int = 0,
+    n_probs: int = 20,
+    fname: str = "results.csv",
+    prob_clss: Iterable[type[MonotoneProb]] = (RandSteps, RandMonotoneNets, RandQCQP),
+    dims: Iterable[int] = range(4, 7),
+    solver_names: tuple[str, ...] | None = None,
+) -> None:
+    """
+    Run every solver variant on `n_probs` instances of each problem class and dimension, appending to `fname`.
+
+    `prob_clss`, `dims` and `solver_names` restrict the run to a subset, e.g. to re-run a single block.
+    """
+
+    solvers: tuple[type[ABPolyblock], ...] = (
         type("Vectorised", (TreePOA,), {"PROJECTED_VERTICES": 8}),
         type("TreeBased", (TreePOA,), {"PROJECTED_VERTICES": 1}),
         type("Relaxed", (BalancedPOA,), {}),
         type("Balanced", (BalancedPOA,), {}),
         type("Base", (BasePOA,), {}),
     )
-    prob_clss = (RandSteps, RandMonotoneNets, RandQCQP)
+    if solver_names is not None:
+        solvers = tuple(s for s in solvers if s.__name__ in solver_names)
 
     parent_dir = os.path.dirname(__file__)
     full_path = os.path.join(parent_dir, fname)
@@ -62,8 +76,10 @@ def experiments(seed=0, n_probs=20, fname="results.csv"):
                 n_probs=n_probs,
                 instance=i,
                 runtime=round(sol.runtime, 3),
-                success=sol.success,
-                obj=round(sol.obj, 3) if sol.obj > -np.inf else np.nan,
+                status=sol.status,
+                obj=round(sol.obj, 5) if sol.obj > -np.inf else np.nan,
+                max_polyblock=sol.max_polyblock,
+                n_iter=sol.n_iter,
             )
 
 

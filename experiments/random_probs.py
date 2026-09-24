@@ -54,15 +54,12 @@ class MonotoneProb(ABC):
     def lb_oracle(self, x):
         return self._apply(x, "lb") >= self.lb_trg
 
-    def rand_x(self, reduce=1.0):
-        rnd_val = self.rng.random(self.vars, dtype=self.dtype)
-        rnd_x = rnd_val * reduce * (self.x_max - self.x_min) + self.x_min
-        return rnd_x
-
     def rand_trg(self, leeway=0.01):
-        x = self.rand_x()[None]
-        self.ub_trg = self._apply(x + leeway, "ub")
-        self.lb_trg = self._apply(x - leeway, "lb")
+        down_shift = leeway * (self.x_max - self.x_min)
+        rnd_x = self.rng.uniform(self.x_min, self.x_max - down_shift)
+        rnd_x = rnd_x.astype(self.dtype)[None]
+        self.ub_trg = self._apply(rnd_x + down_shift, "ub")
+        self.lb_trg = self._apply(rnd_x, "lb")
 
     def solve(self, solver: type[ABPolyblock], **kwargs):
         return solver.solve(

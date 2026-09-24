@@ -7,10 +7,13 @@ ifeq ($(UV),)
 UV := $(HOME)/.local/bin/uv
 endif
 
+# Oldest Python allowed, used to test against the oldest allowed dependency versions.
+MIN_PYTHON := $(shell sed -n 's/^requires-python *= *">=\([0-9.]*\)"/\1/p' pyproject.toml)
+
 help:
 	@echo "Available targets:"
 	@echo "  sync         Install/sync dependencies (incl. dev group)"
-	@echo "  test         Run the test suite"
+	@echo "  test         Run the test suite, then again on the oldest allowed Python and dependencies"
 	@echo "  docs         Serve docs locally with live reload"
 	@echo "  docs-build   Build the docs site (strict mode)"
 	@echo "  docs-deploy  Publish docs to the gh-pages branch"
@@ -32,6 +35,7 @@ sync: ensure-uv
 
 test: ensure-uv
 	$(UV) run --no-sync pytest
+	$(UV) run --isolated --python $(MIN_PYTHON) --resolution lowest-direct --group dev pytest
 
 docs: ensure-uv
 	$(UV) run --no-sync --group docs mkdocs serve

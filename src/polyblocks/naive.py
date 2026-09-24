@@ -8,7 +8,7 @@ from .jit_funcs import new_block
 class BasePOA(ABPolyblock):
     """A naive implementation of POA which directly stores polyblock vertices in dynamic arrays."""
 
-    POLYBLOCK_LIMIT = 3 * int(1e6)
+    POLYBLOCK_LIMIT = 3_000_000
     RHO = 0.2
 
     def __init__(self, lower, upper, upper_obj):

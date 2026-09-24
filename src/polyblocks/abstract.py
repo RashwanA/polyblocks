@@ -82,7 +82,7 @@ class ABPolyblock(ABC):
         POLYBLOCK_LIMIT: Maximum permitted `size` of the polyblock container.
     """
 
-    POLYBLOCK_LIMIT = 2 * int(1e8)
+    POLYBLOCK_LIMIT = 200_000_000
 
     @abstractmethod
     def __init__(self, lower: NDArray, upper: NDArray, upper_obj: np.floating) -> None:
@@ -276,7 +276,7 @@ class ABPolyblock(ABC):
                 if best_obj_cand > sol.obj:
                     sol.obj = best_obj_cand.item()
                     sol.x = cand_feas[best_cand].copy()
-                    min_obj = eps_obj_abs + sol.obj * (eps_obj_rel + 1)
+                    min_obj = eps_obj_abs + eps_obj_rel * abs(sol.obj) + sol.obj
                     polyblock.set_min_obj(min_obj)
 
             ## update polyblock representation

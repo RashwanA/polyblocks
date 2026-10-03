@@ -25,12 +25,17 @@ class MonotoneProb(ABC):
         self.dtype = self.x_min.dtype
         self.ub_trg: ndarray
         self.lb_trg: ndarray
+        self.obj_shift: np.floating
+        self.obj_scale: np.floating
         self.params: dict[str, dict[str, ndarray]] = {}
         self.reroll()
 
     def reroll(self):
         for type in ("obj", "ub", "lb"):
             self.params[type] = self.generate_params()
+        lo, hi = (self._apply(x[None], "obj")[0] for x in (self.x_min, self.x_max))
+        self.obj_shift = lo
+        self.obj_scale = max(hi - lo, np.finfo(self.dtype).tiny)
         self.rand_trg()
 
     @abstractmethod
@@ -46,7 +51,7 @@ class MonotoneProb(ABC):
         return self.eval(x, **self.params[type])
 
     def obj(self, x):
-        return self._apply(x, "obj")
+        return 1 + (self._apply(x, "obj") - self.obj_shift) / self.obj_scale
 
     def ub_oracle(self, x):
         return self._apply(x, "ub") <= self.ub_trg
